@@ -2,12 +2,11 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const Order = require('../models/Order');
-const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const config = require('../config/env');
 
 const createToken = (user, jwtAuth, expiresIn) => {
-  const { sub: id, email, name, surname } = user;
+  const { id, email, name, surname } = user;
   return jwt.sign({ sub: id, name, surname, email }, jwtAuth, { expiresIn });
 };
 
@@ -171,12 +170,12 @@ const resolvers = {
   Mutation: {
     // Users
     createUser: async (_, { input }) => {
-      const { email, password } = input;
-      const userExists = await User.findOne({ email });
-      if (userExists) {
+      const { email, name, surname, password } = input;
+      let user = await User.findOne({ email });
+      if (user) {
         throw new Error('User already exists.');
       }
-      let user = new User({ input });
+      user = new User({ email, name, surname, password });
       try {
         user = await user.save();
         user = user.toJSON();
@@ -200,7 +199,10 @@ const resolvers = {
       };
     },
     // Products
-    createProduct: async (_, { input }) => {
+    createProduct: async (_, { input }, ctx) => {
+      if (!ctx.user) {
+        throw new Error('Token Error');
+      }
       try {
         let product = new Product(input);
         product = await product.save();
@@ -227,9 +229,17 @@ const resolvers = {
       return 'Product deleted successfully';
     },
     // Customers
-    createCustomer: async (_, { input }) => {
+    createCustomer: async (_, { input }, ctx) => {
+      if (!ctx.user) {
+        throw new Error('Token Error');
+      }
+      const { email } = input;
+      let customer = await Customer.findOne({ email });
+      if (customer) {
+        throw new Error('Customer already exists!');
+      }
+      customer = new Customer({ ...input, seller: ctx.user.id });
       try {
-        let customer = new Customer(input);
         customer = await customer.save();
         return customer.toJSON();
       } catch (e) {
@@ -241,7 +251,7 @@ const resolvers = {
       if (!customer) {
         throw new Error('Customer not found.');
       }
-      customer = await Product.findOneAndUpdate({ _id: id }, input, {
+      customer = await Customer.findOneAndUpdate({ _id: id }, input, {
         new: true
       });
       return customer;
@@ -259,7 +269,7 @@ const resolvers = {
         throw new Error('Token Error');
       }
       const { customer: customerId } = input;
-      let customer = await Customer.findById(customerId);
+      let customer = await Customer.findOne({ _id: customerId });
       if (!customer) {
         throw new Error('Customer not found.');
       }
@@ -267,10 +277,13 @@ const resolvers = {
         throw new Error('Access denied!');
       }
       for await (const asset of input.products) {
-        const { id } = asset;
-        const product = await Product.findById(id);
+        const { product: id } = asset;
+        const product = await Product.findOne({ _id: id });
+        if (!product) {
+          throw new Error('Product not found.');
+        }
         if (asset.quantity > product.quantity) {
-          throw new Error(`The product: ${product.name} 
+          throw new Error(`The product: ${product.name}
           exceeds quantity available`);
         } else {
           product.quantity -= asset.quantity;
@@ -286,7 +299,7 @@ const resolvers = {
       if (!ctx.user) {
         throw new Error('Token Error');
       }
-      const order = await Order.findById(id);
+      const order = await Order.findOne({ _id: id });
       if (!order) {
         throw new Error('Order does not exists!');
       }
@@ -295,16 +308,22 @@ const resolvers = {
       }
       if (input.products) {
         for await (const asset of input.products) {
-          const { id } = asset;
-          const product = await Product.findById(id);
-          if (asset.quantity > product.quantity) {
-            throw new Error(`The product: ${product.name} 
+          const { product: id } = asset;
+          const product = await Product.findOne({ _id: id });
+          if (product) {
+            if (asset.quantity > product.quantity) {
+              throw new Error(`The product: ${product.name} 
           exceeds quantity available`);
+            } else {
+              product.quantity -= asset.quantity;
+              await product.save();
+            }
           } else {
-            product.quantity -= asset.quantity;
-            await product.save();
+            throw new Error('Product not found.');
           }
         }
+      } else {
+        throw new Error('Error updating products in order.');
       }
       return Order.findOneAndUpdate({ _id: id }, input, { new: true });
     },
@@ -313,7 +332,7 @@ const resolvers = {
         throw new Error('Token Error');
       }
       const order = await Order.findOneAndDelete({
-        _id: ctx.user.id,
+        _id: id,
         seller: ctx.user.id
       });
       if (!order) {
@@ -321,6 +340,7 @@ const resolvers = {
           throw new Error('Order not found');
         }
       }
+      return 'Order deleted successfully.';
     }
   }
 };

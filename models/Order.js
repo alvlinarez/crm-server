@@ -4,9 +4,16 @@ const orderSchema = mongoose.Schema(
   {
     products: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
-        required: true
+        product: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Product',
+          required: true
+        },
+        quantity: {
+          type: Number,
+          required: true
+        },
+        _id: false
       }
     ],
     total: {
@@ -37,7 +44,8 @@ const orderSchema = mongoose.Schema(
 const autoPopulate = function (next) {
   this.populate([
     {
-      path: 'products'
+      path: 'products',
+      populate: 'product'
     },
     {
       path: 'customer'

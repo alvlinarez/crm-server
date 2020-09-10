@@ -25,9 +25,13 @@ const typeDefs = gql`
     seller: User
     createdAt: String
   }
+  type OrderProduct {
+    product: Product
+    quantity: Int
+  }
   type Order {
     id: ID
-    products: [Product]
+    products: [OrderProduct]
     total: Float
     customer: Customer
     seller: User
@@ -68,7 +72,7 @@ const typeDefs = gql`
     phone: String!
   }
   input OrderProductInput {
-    id: ID!
+    product: ID!
     quantity: Int!
     name: String
     price: Float
@@ -97,7 +101,7 @@ const typeDefs = gql`
     # Orders
     getOrder(id: ID!): Order
     getOrders: [Order]
-    getOrdersBySeller(id: ID!): [Order]
+    getOrdersBySeller: [Order]
     getOrdersByState(state: OrderState!): [Order]
     # Advanced Searchs
     bestCustomers: [BestCustomer]

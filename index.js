@@ -14,14 +14,12 @@ const server = new ApolloServer({
     const token = req.headers['authorization'] || '';
     if (token) {
       try {
-        const { id, name, email } = jwt.verify(
+        const { sub: id, name, surname, email } = jwt.verify(
           token.replace('Bearer ', ''),
           config.jwtAuth
         );
         return {
-          id,
-          name,
-          email
+          user: { id, name, surname, email }
         };
       } catch (e) {
         console.log('An error happened!');
